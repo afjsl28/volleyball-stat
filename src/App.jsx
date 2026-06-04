@@ -511,13 +511,18 @@ function PlayerPoolSetup({ players, onChange, title, maxCount=10 }) {
 }
 
 // ── Setup: Lineup ─────────────────────────────────────────────
+// 코트 배치: 표준 배구 존 번호
+// 네트
+// [ P4(4존) | P3(3존) | P2(2존) ]  ← 전위
+// [ P5(5존) | P6(6존) | P1(1존) ]  ← 후위 (P1=서버, 오른쪽)
+const COURT_DISPLAY_ORDER = [3, 2, 1, 4, 5, 0]; // 화면에 표시할 슬롯 인덱스 순서 (전위 좌→우, 후위 좌→우)
+const SLOT_ZONE_LABELS = ["1존(서버)", "2존", "3존", "4존", "5존", "6존"];
+
 function LineupSetup({ pool, lineup, onChange, liberoId, onLiberoChange, liberoReplaceId, onLiberoReplaceChange }) {
-  const slotLabels = ["P1\n서버", "P2", "P3", "P4", "P5", "P6"];
   const [selecting, setSelecting] = useState(null);
 
   const assignPlayer = (slotIdx, player) => {
     const newLineup = [...lineup];
-    // 이미 다른 슬롯에 있으면 제거
     const existingIdx = newLineup.findIndex(p => p && p.id === player.id);
     if (existingIdx !== -1) newLineup[existingIdx] = null;
     newLineup[slotIdx] = player;
@@ -525,60 +530,64 @@ function LineupSetup({ pool, lineup, onChange, liberoId, onLiberoChange, liberoR
     setSelecting(null);
   };
 
+  // 전위: 슬롯 3(4존), 2(3존), 1(2존) — 좌→우
+  const frontRow = [3, 2, 1];
+  // 후위: 슬롯 4(5존), 5(6존), 0(1존/서버) — 좌→우
+  const backRow = [4, 5, 0];
+
+  const SlotCell = ({ slotIdx }) => {
+    const p = lineup[slotIdx];
+    const isServer = slotIdx === 0;
+    const isSelecting = selecting === slotIdx;
+    return (
+      <div onClick={() => setSelecting(isSelecting ? null : slotIdx)} style={{
+        height:60, borderRadius:8,
+        border:`1.5px dashed ${isSelecting ? COLORS.accent : isServer ? COLORS.warn : COLORS.border}`,
+        background: p ? (isServer ? `${COLORS.warn}18` : `${COLORS.accent}18`) : COLORS.card,
+        display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+        cursor:"pointer", transition:"all .15s",
+        boxShadow: isSelecting ? `0 0 12px ${COLORS.accent}44` : "none",
+      }}>
+        <span style={{ fontSize:9, color: isServer ? COLORS.warn : COLORS.muted, marginBottom:2 }}>
+          {SLOT_ZONE_LABELS[slotIdx]}
+        </span>
+        {p ? (
+          <>
+            <span style={{ fontSize:13, fontWeight:700, color:COLORS.text }}>#{p.number}</span>
+            <span style={{ fontSize:10, color:COLORS.muted }}>{p.name}</span>
+            <span style={{ fontSize:9, color: isServer ? COLORS.warn : COLORS.accent }}>{p.position}{isServer ? " ★" : ""}</span>
+          </>
+        ) : (
+          <span style={{ fontSize:11, color:COLORS.border }}>P{slotIdx + 1}</span>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div style={{ fontFamily:"'Pretendard', sans-serif" }}>
-      <div style={{ fontSize:14, color:COLORS.muted, marginBottom:12 }}>선수를 슬롯에 배치하세요 (P1이 첫 서버)</div>
+      <div style={{ fontSize:14, color:COLORS.muted, marginBottom:12 }}>
+        슬롯을 탭해서 선수를 배치하세요 (★ = 첫 서버)
+      </div>
 
-      {/* 코트 슬롯 */}
+      {/* 코트 슬롯 — 표준 배구 존 배치 */}
       <div style={{
-        display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:6,
-        background:"#0d1f35", borderRadius:10, padding:10, border:`1.5px solid ${COLORS.accent}44`,
-        position:"relative", marginBottom:12,
+        background:"#0d1f35", borderRadius:10, padding:10,
+        border:`1.5px solid ${COLORS.accent}44`, marginBottom:12,
       }}>
-        {/* 네트 표시 */}
-        <div style={{
-          gridColumn:"1/-1", height:3, background:`linear-gradient(90deg,transparent,${COLORS.accent},transparent)`,
-          borderRadius:2, margin:"4px 0",
-        }} />
-        {/* 전위 (P4,P5,P6) */}
-        {[3,4,5].map(i => (
-          <div key={i} onClick={() => setSelecting(selecting===i?null:i)} style={{
-            height:56, borderRadius:8, border:`1.5px dashed ${selecting===i?COLORS.accent:COLORS.border}`,
-            background: lineup[i] ? `${COLORS.accent}18` : COLORS.card,
-            display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-            cursor:"pointer", transition:"all .15s",
-            boxShadow: selecting===i ? `0 0 12px ${COLORS.accent}44` : "none",
-          }}>
-            {lineup[i] ? (
-              <>
-                <span style={{ fontSize:12, fontWeight:700, color:COLORS.text }}>#{lineup[i].number}</span>
-                <span style={{ fontSize:10, color:COLORS.muted }}>{lineup[i].name}</span>
-                <span style={{ fontSize:9, color:COLORS.accent }}>{lineup[i].position}</span>
-              </>
-            ) : (
-              <span style={{ fontSize:10, color:COLORS.muted }}>{slotLabels[i]}</span>
-            )}
-          </div>
-        ))}
-        {/* 후위 (P1,P2,P3) */}
-        {[0,1,2].map(i => (
-          <div key={i} onClick={() => setSelecting(selecting===i?null:i)} style={{
-            height:56, borderRadius:8, border:`1.5px dashed ${selecting===i?COLORS.accent:i===0?COLORS.warn:COLORS.border}`,
-            background: lineup[i] ? `${i===0?COLORS.warn:COLORS.accent}18` : COLORS.card,
-            display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-            cursor:"pointer", transition:"all .15s",
-          }}>
-            {lineup[i] ? (
-              <>
-                <span style={{ fontSize:12, fontWeight:700, color:COLORS.text }}>#{lineup[i].number}</span>
-                <span style={{ fontSize:10, color:COLORS.muted }}>{lineup[i].name}</span>
-                <span style={{ fontSize:9, color:i===0?COLORS.warn:COLORS.accent }}>{lineup[i].position}{i===0?" ★":""}</span>
-              </>
-            ) : (
-              <span style={{ fontSize:10, color:COLORS.muted }}>{slotLabels[i]}</span>
-            )}
-          </div>
-        ))}
+        {/* 상대 코트 표시 */}
+        <div style={{ textAlign:"center", fontSize:10, color:COLORS.muted, opacity:.4, marginBottom:6 }}>▲ 네트 ▲</div>
+        {/* 전위: 4존 | 3존 | 2존 */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:6, marginBottom:6 }}>
+          {frontRow.map(i => <SlotCell key={i} slotIdx={i} />)}
+        </div>
+        {/* 네트 */}
+        <div style={{ height:3, background:`linear-gradient(90deg,transparent,${COLORS.accent},transparent)`, borderRadius:1, margin:"4px 0" }} />
+        {/* 후위: 5존 | 6존 | 1존(서버) */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:6, marginTop:6 }}>
+          {backRow.map(i => <SlotCell key={i} slotIdx={i} />)}
+        </div>
+        <div style={{ textAlign:"center", fontSize:10, color:COLORS.muted, opacity:.4, marginTop:6 }}>▼ 우리팀 엔드라인 ▼</div>
       </div>
 
       {/* 선수 선택 팝업 */}
@@ -752,32 +761,57 @@ function AnalysisView({ sets, myPlayers, oppPlayers }) {
 }
 
 // ============================================================
+// LOCALSTORAGE HELPERS
+// ============================================================
+function loadState(key, fallback) {
+  try {
+    const v = localStorage.getItem(key);
+    return v ? JSON.parse(v) : fallback;
+  } catch { return fallback; }
+}
+function saveState(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+}
+
+// ============================================================
 // MAIN APP
 // ============================================================
 export default function VolleyballApp() {
-  const [screen, setScreen] = useState("home"); // home | setup | game | analysis
-  const [setupStep, setSetupStep] = useState(0); // 0:우리선수풀 1:우리라인업 2:상대선수풀 3:상대라인업 4:서브권
+  const [screen, setScreen] = useState(() => loadState("vs_screen", "home"));
+  const [setupStep, setSetupStep] = useState(0);
 
   // Player pools
-  const [myPool, setMyPool] = useState([]);
-  const [oppPool, setOppPool] = useState([]);
+  const [myPool, setMyPool] = useState(() => loadState("vs_myPool", []));
+  const [oppPool, setOppPool] = useState(() => loadState("vs_oppPool", []));
 
   // Lineups (6 slots)
-  const [myLineup, setMyLineup] = useState(Array(6).fill(null));
-  const [oppLineup, setOppLineup] = useState(Array(6).fill(null));
+  const [myLineup, setMyLineup] = useState(() => loadState("vs_myLineup", Array(6).fill(null)));
+  const [oppLineup, setOppLineup] = useState(() => loadState("vs_oppLineup", Array(6).fill(null)));
 
   // Libero settings
-  const [myLiberoId, setMyLiberoId] = useState(null);
-  const [myLiberoReplaceId, setMyLiberoReplaceId] = useState(null);
+  const [myLiberoId, setMyLiberoId] = useState(() => loadState("vs_myLiberoId", null));
+  const [myLiberoReplaceId, setMyLiberoReplaceId] = useState(() => loadState("vs_myLiberoReplaceId", null));
 
   // Game state
-  const [sets, setSets] = useState([]);
-  const [currentSetIdx, setCurrentSetIdx] = useState(0);
-  const [firstServeUs, setFirstServeUs] = useState(true);
+  const [sets, setSets] = useState(() => loadState("vs_sets", []));
+  const [currentSetIdx, setCurrentSetIdx] = useState(() => loadState("vs_currentSetIdx", 0));
+  const [firstServeUs, setFirstServeUs] = useState(() => loadState("vs_firstServeUs", true));
 
   // Modal
   const [modalOpen, setModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("score"); // score | rotation | log | analysis
+  const [activeTab, setActiveTab] = useState("score");
+
+  // ── 자동 저장 ──
+  useEffect(() => { saveState("vs_screen", screen); }, [screen]);
+  useEffect(() => { saveState("vs_myPool", myPool); }, [myPool]);
+  useEffect(() => { saveState("vs_oppPool", oppPool); }, [oppPool]);
+  useEffect(() => { saveState("vs_myLineup", myLineup); }, [myLineup]);
+  useEffect(() => { saveState("vs_oppLineup", oppLineup); }, [oppLineup]);
+  useEffect(() => { saveState("vs_myLiberoId", myLiberoId); }, [myLiberoId]);
+  useEffect(() => { saveState("vs_myLiberoReplaceId", myLiberoReplaceId); }, [myLiberoReplaceId]);
+  useEffect(() => { saveState("vs_sets", sets); }, [sets]);
+  useEffect(() => { saveState("vs_currentSetIdx", currentSetIdx); }, [currentSetIdx]);
+  useEffect(() => { saveState("vs_firstServeUs", firstServeUs); }, [firstServeUs]);
 
   const currentSet = sets[currentSetIdx];
 
@@ -905,7 +939,19 @@ export default function VolleyballApp() {
           <button onClick={() => setScreen("game")} style={{
             width:"100%", padding:"14px", borderRadius:14, fontSize:15, fontWeight:600,
             background:COLORS.card, border:`1px solid ${COLORS.border}`, color:COLORS.text, cursor:"pointer",
-          }}>진행 중인 경기 계속</button>
+            marginBottom:12,
+          }}>진행 중인 경기 계속 →</button>
+        )}
+
+        {(sets.length > 0 || myPool.length > 0) && (
+          <button onClick={() => {
+            if (!window.confirm("모든 데이터를 초기화할까요?")) return;
+            localStorage.clear();
+            window.location.reload();
+          }} style={{
+            width:"100%", padding:"12px", borderRadius:14, fontSize:13, fontWeight:600,
+            background:"transparent", border:`1px solid ${COLORS.danger}44`, color:COLORS.danger, cursor:"pointer",
+          }}>🗑️ 데이터 초기화</button>
         )}
       </div>
     </div>
@@ -1081,77 +1127,105 @@ export default function VolleyballApp() {
               {/* 우리팀 */}
               <div style={{ background:COLORS.card, borderRadius:14, padding:14, border:`1px solid ${COLORS.border}` }}>
                 <div style={{ fontSize:13, fontWeight:600, color:COLORS.text, marginBottom:10 }}>우리팀 현재 로테이션</div>
-                <div style={{
-                  display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:6,
-                  background:"#0d1f35", borderRadius:10, padding:10,
-                }}>
-                  <div style={{ gridColumn:"1/-1", height:2, background:`linear-gradient(90deg,transparent,${COLORS.accent},transparent)`, borderRadius:1, margin:"2px 0 6px" }} />
-                  {/* 전위: 슬롯 3,4,5 */}
-                  {[3,4,5].map(i => {
-                    const p = displayRotation[i];
-                    return (
-                      <div key={i} style={{
-                        height:52, borderRadius:8, background:COLORS.surface,
-                        border:`1px solid ${COLORS.border}`,
-                        display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-                      }}>
-                        {p ? <>
-                          <span style={{ fontSize:13, fontWeight:700, color:COLORS.text }}>#{p.number}</span>
-                          <span style={{ fontSize:10, color:COLORS.muted }}>{p.name}</span>
-                          <span style={{ fontSize:9, color:COLORS.accent }}>{p.position}</span>
-                        </> : <span style={{ fontSize:10, color:COLORS.border }}>-</span>}
-                      </div>
-                    );
-                  })}
-                  {/* 후위: 슬롯 0,1,2 */}
-                  {[0,1,2].map(i => {
-                    const p = displayRotation[i];
-                    const isServer = i === 0 && currentSet.myServes;
-                    return (
-                      <div key={i} style={{
-                        height:52, borderRadius:8,
-                        background: isServer ? `${COLORS.warn}22` : COLORS.surface,
-                        border:`1px solid ${isServer ? COLORS.warn : COLORS.border}`,
-                        display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-                      }}>
-                        {p ? <>
-                          <span style={{ fontSize:13, fontWeight:700, color:COLORS.text }}>#{p.number}</span>
-                          <span style={{ fontSize:10, color:COLORS.muted }}>{p.name}</span>
-                          <span style={{ fontSize:9, color:isServer?COLORS.warn:COLORS.accent }}>{p.position}{isServer?" ★":""}</span>
-                        </> : <span style={{ fontSize:10, color:COLORS.border }}>-</span>}
-                      </div>
-                    );
-                  })}
+                <div style={{ background:"#0d1f35", borderRadius:10, padding:10 }}>
+                  <div style={{ textAlign:"center", fontSize:10, color:COLORS.muted, opacity:.4, marginBottom:4 }}>▲ 네트 ▲</div>
+                  {/* 전위: 4존(슬롯3) | 3존(슬롯2) | 2존(슬롯1) */}
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:6, marginBottom:6 }}>
+                    {[3,2,1].map(i => {
+                      const p = displayRotation[i];
+                      return (
+                        <div key={i} style={{
+                          height:52, borderRadius:8, background:COLORS.surface,
+                          border:`1px solid ${COLORS.border}`,
+                          display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+                        }}>
+                          <span style={{ fontSize:9, color:COLORS.muted, opacity:.6 }}>{["1존","2존","3존","4존","5존","6존"][i]}</span>
+                          {p ? <>
+                            <span style={{ fontSize:13, fontWeight:700, color:COLORS.text }}>#{p.number}</span>
+                            <span style={{ fontSize:10, color:COLORS.muted }}>{p.name}</span>
+                            <span style={{ fontSize:9, color:COLORS.accent }}>{p.position}</span>
+                          </> : <span style={{ fontSize:10, color:COLORS.border }}>-</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* 네트 */}
+                  <div style={{ height:3, background:`linear-gradient(90deg,transparent,${COLORS.accent},transparent)`, borderRadius:1, margin:"2px 0" }} />
+                  {/* 후위: 5존(슬롯4) | 6존(슬롯5) | 1존(슬롯0/서버) */}
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:6, marginTop:6 }}>
+                    {[4,5,0].map(i => {
+                      const p = displayRotation[i];
+                      const isServer = i === 0 && currentSet.myServes;
+                      return (
+                        <div key={i} style={{
+                          height:52, borderRadius:8,
+                          background: isServer ? `${COLORS.warn}22` : COLORS.surface,
+                          border:`1px solid ${isServer ? COLORS.warn : COLORS.border}`,
+                          display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+                        }}>
+                          <span style={{ fontSize:9, color: isServer ? COLORS.warn : COLORS.muted, opacity:.8 }}>{["1존","2존","3존","4존","5존","6존"][i]}{isServer?" ★":""}</span>
+                          {p ? <>
+                            <span style={{ fontSize:13, fontWeight:700, color:COLORS.text }}>#{p.number}</span>
+                            <span style={{ fontSize:10, color:COLORS.muted }}>{p.name}</span>
+                            <span style={{ fontSize:9, color:isServer?COLORS.warn:COLORS.accent }}>{p.position}</span>
+                          </> : <span style={{ fontSize:10, color:COLORS.border }}>-</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ textAlign:"center", fontSize:10, color:COLORS.muted, opacity:.4, marginTop:4 }}>▼ 엔드라인 ▼</div>
                 </div>
                 <div style={{ marginTop:8, fontSize:11, color:COLORS.muted }}>
-                  ★ = 현재 서버 위치 | 로테이션 {currentSet.rallies.filter(r=>r.scorer==="us"&&!currentSet.myServes).length + 1}번째
+                  ★ = 현재 서버 (1존)
                 </div>
               </div>
 
               {/* 상대팀 */}
               <div style={{ background:COLORS.card, borderRadius:14, padding:14, border:`1px solid ${COLORS.border}` }}>
                 <div style={{ fontSize:13, fontWeight:600, color:COLORS.text, marginBottom:10 }}>상대팀 추정 로테이션</div>
-                <div style={{
-                  display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:6,
-                  background:"#0d1f35", borderRadius:10, padding:10,
-                }}>
-                  <div style={{ gridColumn:"1/-1", height:2, background:`linear-gradient(90deg,transparent,${COLORS.danger},transparent)`, borderRadius:1, margin:"2px 0 6px" }} />
-                  {[3,4,5,0,1,2].map(i => {
-                    const p = currentSet.oppRotation[i];
-                    return (
-                      <div key={i} style={{
-                        height:52, borderRadius:8, background:COLORS.surface,
-                        border:`1px solid ${COLORS.border}`,
-                        display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-                      }}>
-                        {p ? <>
-                          <span style={{ fontSize:13, fontWeight:700, color:COLORS.text }}>#{p.number}</span>
-                          <span style={{ fontSize:10, color:COLORS.muted }}>{p.name}</span>
-                          <span style={{ fontSize:9, color:COLORS.danger }}>{p.position||"?"}</span>
-                        </> : <span style={{ fontSize:11, color:COLORS.border }}>미확인</span>}
-                      </div>
-                    );
-                  })}
+                <div style={{ background:"#0d1f35", borderRadius:10, padding:10 }}>
+                  <div style={{ textAlign:"center", fontSize:10, color:COLORS.muted, opacity:.4, marginBottom:4 }}>▲ 네트 ▲</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:6, marginBottom:6 }}>
+                    {[3,2,1].map(i => {
+                      const p = currentSet.oppRotation[i];
+                      return (
+                        <div key={i} style={{
+                          height:52, borderRadius:8, background:COLORS.surface,
+                          border:`1px solid ${COLORS.border}`,
+                          display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+                        }}>
+                          <span style={{ fontSize:9, color:COLORS.muted, opacity:.6 }}>{["1존","2존","3존","4존","5존","6존"][i]}</span>
+                          {p ? <>
+                            <span style={{ fontSize:13, fontWeight:700, color:COLORS.text }}>#{p.number}</span>
+                            <span style={{ fontSize:10, color:COLORS.muted }}>{p.name}</span>
+                            <span style={{ fontSize:9, color:COLORS.danger }}>{p.position||"?"}</span>
+                          </> : <span style={{ fontSize:11, color:COLORS.border }}>미확인</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ height:3, background:`linear-gradient(90deg,transparent,${COLORS.danger},transparent)`, borderRadius:1, margin:"2px 0" }} />
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:6, marginTop:6 }}>
+                    {[4,5,0].map(i => {
+                      const p = currentSet.oppRotation[i];
+                      return (
+                        <div key={i} style={{
+                          height:52, borderRadius:8, background:COLORS.surface,
+                          border:`1px solid ${COLORS.border}`,
+                          display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+                        }}>
+                          <span style={{ fontSize:9, color:COLORS.muted, opacity:.6 }}>{["1존","2존","3존","4존","5존","6존"][i]}</span>
+                          {p ? <>
+                            <span style={{ fontSize:13, fontWeight:700, color:COLORS.text }}>#{p.number}</span>
+                            <span style={{ fontSize:10, color:COLORS.muted }}>{p.name}</span>
+                            <span style={{ fontSize:9, color:COLORS.danger }}>{p.position||"?"}</span>
+                          </> : <span style={{ fontSize:11, color:COLORS.border }}>미확인</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ textAlign:"center", fontSize:10, color:COLORS.muted, opacity:.4, marginTop:4 }}>▼ 엔드라인 ▼</div>
+                </div>
                 </div>
                 {/* 상대 선수 빠른 추가 */}
                 <button onClick={() => {
